@@ -95,7 +95,7 @@ export function registerTaskTools(mcpServer: McpServer): void {
 
   mcpServer.registerTool(
     'list_tasks',
-    createToolConfig('List all tasks in the system', z.object({})),
+    createToolConfig('List all tasks in the system'),
     async () => {
       const tasks = db.getAllTasks();
       return createToolResponse(JSON.stringify(tasks, null, 2));
@@ -157,9 +157,7 @@ export function registerTaskTools(mcpServer: McpServer): void {
         priority: 'low' | 'medium' | 'high' | 'urgent';
         dueDate: Date | null;
         tags: string[];
-      }> = Object.fromEntries(
-        Object.entries(updates).filter(([, value]) => value !== undefined)
-      );
+      }> = Object.fromEntries(Object.entries(updates).filter(([, value]) => value !== undefined));
       if (dueDate !== undefined) {
         filteredUpdates.dueDate = dueDate ? new Date(dueDate) : null;
       }
@@ -180,7 +178,9 @@ export function registerTaskTools(mcpServer: McpServer): void {
       if (!deleted) {
         return createToolResponse('Task not found', true);
       }
-      return createToolResponse(JSON.stringify({ success: true, message: 'Task deleted' }, null, 2));
+      return createToolResponse(
+        JSON.stringify({ success: true, message: 'Task deleted' }, null, 2)
+      );
     }
   );
 
@@ -194,4 +194,3 @@ export function registerTaskTools(mcpServer: McpServer): void {
     }
   );
 }
-

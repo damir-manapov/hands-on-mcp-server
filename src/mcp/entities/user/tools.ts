@@ -50,7 +50,7 @@ export function registerUserTools(mcpServer: McpServer): void {
 
   mcpServer.registerTool(
     'list_users',
-    createToolConfig('List all users in the system', z.object({})),
+    createToolConfig('List all users in the system'),
     async () => {
       const users = db.getAllUsers();
       return createToolResponse(JSON.stringify(users, null, 2));

@@ -56,14 +56,10 @@ export function registerTagTools(mcpServer: McpServer): void {
     }
   );
 
-  mcpServer.registerTool(
-    'list_tags',
-    createToolConfig('List all tags in the system', z.object({})),
-    async () => {
-      const tags = db.getAllTags();
-      return createToolResponse(JSON.stringify(tags, null, 2));
-    }
-  );
+  mcpServer.registerTool('list_tags', createToolConfig('List all tags in the system'), async () => {
+    const tags = db.getAllTags();
+    return createToolResponse(JSON.stringify(tags, null, 2));
+  });
 
   mcpServer.registerTool(
     'update_tag',
@@ -96,4 +92,3 @@ export function registerTagTools(mcpServer: McpServer): void {
     }
   );
 }
-

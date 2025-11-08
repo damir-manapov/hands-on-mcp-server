@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createServer } from '../../server.js';
+import { createServer } from '../../../src/mcp/server.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 describe('create_user tool', () => {

@@ -68,7 +68,7 @@ export function registerProjectTools(mcpServer: McpServer): void {
 
   mcpServer.registerTool(
     'list_projects',
-    createToolConfig('List all projects in the system', z.object({})),
+    createToolConfig('List all projects in the system'),
     async () => {
       const projects = db.getAllProjects();
       return createToolResponse(JSON.stringify(projects, null, 2));
@@ -112,8 +112,9 @@ export function registerProjectTools(mcpServer: McpServer): void {
       if (!deleted) {
         return createToolResponse('Project not found', true);
       }
-      return createToolResponse(JSON.stringify({ success: true, message: 'Project deleted' }, null, 2));
+      return createToolResponse(
+        JSON.stringify({ success: true, message: 'Project deleted' }, null, 2)
+      );
     }
   );
 }
-

@@ -3,27 +3,39 @@ import type { ZodRawShape } from 'zod';
 
 // Helper to work around type issues with ZodRawShape
 // The MCP SDK expects ZodRawShape but we have ZodObject, so we need this conversion
-// Note: We must use 'any' here due to TypeScript's inability to express the structural
-// compatibility between ZodObject and ZodRawShape that exists at runtime
+// We extract the shape property which is the actual ZodRawShape
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const schema = <T extends ZodRawShape>(s: z.ZodObject<T>): any => {
-  // Type assertion needed for MCP SDK compatibility
-  // ZodObject is structurally compatible with ZodRawShape at runtime
-  return s as unknown as ZodRawShape;
+  // Extract the shape property which is the ZodRawShape the SDK expects
+  return s.shape;
 };
 
 // Helper to create tool config with properly typed inputSchema
 // This encapsulates the type conversion needed for MCP SDK compatibility
 export function createToolConfig<T extends ZodRawShape>(
   description: string,
-  inputSchema: z.ZodObject<T>
+  inputSchema?: z.ZodObject<T>
 ) {
-  return {
+  const config: {
+    description: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    inputSchema?: any;
+  } = {
     description,
-    // The schema() helper uses 'any' for MCP SDK compatibility (see schema() comment)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    inputSchema: schema(inputSchema),
   };
+
+  // Only add inputSchema if provided and not empty
+  if (inputSchema) {
+    const shape = inputSchema.shape;
+    const isEmpty = Object.keys(shape).length === 0;
+    if (!isEmpty) {
+      // Pass the shape (ZodRawShape) - the MCP SDK will wrap it in z.object()
+
+      config.inputSchema = shape;
+    }
+  }
+
+  return config;
 }
 
 // Helper function to safely parse and validate input

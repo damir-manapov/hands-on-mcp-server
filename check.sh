@@ -14,6 +14,9 @@ pnpm lint
 echo "Type checking..."
 pnpm typecheck
 
+echo "Building project..."
+pnpm build
+
 echo "Running tests..."
 pnpm test --run
 
