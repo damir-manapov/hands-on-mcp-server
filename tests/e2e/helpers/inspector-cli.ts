@@ -262,11 +262,7 @@ export class PersistentServer {
 
       this.proc.stderr.on('data', (data: Buffer) => {
         this.stderrBuffer += data.toString();
-        // Server is ready when we see the startup message
-        if (this.stderrBuffer.includes('running on stdio')) {
-          this.isReady = true;
-          resolve();
-        }
+        // Stderr is just for error logging, don't use it to detect readiness
       });
 
       this.proc.on('error', error => {
@@ -282,12 +278,49 @@ export class PersistentServer {
         this.pendingRequests.clear();
       });
 
-      // Timeout if server doesn't start within 5 seconds
+      // Send initialize request to check if server is ready
+      // The server is ready when it responds to initialize
+      // Use a small delay to ensure process is fully spawned
       setTimeout(() => {
-        if (!this.isReady) {
-          reject(new Error('Server did not start within timeout'));
+        try {
+          const initRequest = {
+            jsonrpc: '2.0' as const,
+            id: -1, // Use -1 to avoid conflicts with regular requests
+            method: 'initialize',
+            params: {
+              protocolVersion: '2024-11-05',
+              capabilities: {},
+              clientInfo: {
+                name: 'test-client',
+                version: '1.0.0',
+              },
+            },
+          };
+
+          if (this.proc && this.proc.stdin && !this.proc.stdin.destroyed) {
+            this.proc.stdin.write(JSON.stringify(initRequest) + '\n');
+          }
+
+          // Wait for initialize response
+          // The response will be detected in processStdout() which sets isReady
+          const checkReady = setInterval(() => {
+            if (this.isReady) {
+              clearInterval(checkReady);
+              resolve();
+            }
+          }, 50);
+
+          // Timeout if server doesn't respond within 5 seconds
+          setTimeout(() => {
+            clearInterval(checkReady);
+            if (!this.isReady) {
+              reject(new Error('Server did not respond to initialize within timeout'));
+            }
+          }, 5000);
+        } catch (error) {
+          reject(error);
         }
-      }, 5000);
+      }, 200);
     });
   }
 
@@ -308,6 +341,14 @@ export class PersistentServer {
 
       try {
         const response = JSON.parse(trimmed) as { id?: number; result?: unknown; error?: unknown };
+        
+        // Check if this is the initialize response (id: -1) indicating server is ready
+        if (response.id === -1 && response.result && !this.isReady) {
+          this.isReady = true;
+          // Don't process this as a regular request, it's just for readiness check
+          continue;
+        }
+        
         if (response.id !== undefined && this.pendingRequests.has(response.id)) {
           const { resolve, timeout } = this.pendingRequests.get(response.id)!;
           clearTimeout(timeout);
@@ -503,4 +544,29 @@ export function parseResourceError(resourceResult: ResourceResult): ResourceErro
     }
     throw error;
   }
+}
+
+export interface PromptCompletionResult {
+  argument: Record<string, string[]>;
+}
+
+/**
+ * Extract prompt completion result from InspectorCliResult
+ * Throws if the result is invalid or missing
+ */
+export function extractPromptCompletion(result: InspectorCliResult): PromptCompletionResult {
+  if (!result.success) {
+    throw new Error(`Prompt completion failed: ${result.error || 'Unknown error'}`);
+  }
+
+  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  const completionResult = result.json.result as PromptCompletionResult;
+  if (!completionResult || typeof completionResult !== 'object' || !('argument' in completionResult)) {
+    throw new Error(`Invalid completion result format: ${JSON.stringify(completionResult)}`);
+  }
+
+  return completionResult;
 }

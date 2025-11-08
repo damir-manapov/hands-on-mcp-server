@@ -15,7 +15,8 @@ process.on('SIGINT', () => {
 async function main() {
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
-  console.error('User Manager MCP server running on stdio');
+  // Server is now ready - don't output anything to stdout/stderr
+  // as it would interfere with JSON-RPC communication
 }
 
 main().catch((error: unknown) => {

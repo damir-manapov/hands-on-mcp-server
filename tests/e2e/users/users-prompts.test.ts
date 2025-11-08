@@ -5,6 +5,7 @@ import {
   extractResourceResult,
   extractToolResult,
   extractPromptsList,
+  extractPromptCompletion,
   withServer,
 } from '../helpers/inspector-cli.js';
 
@@ -144,6 +145,57 @@ describe('User Prompts', () => {
         expect(userIdArg?.description).toBeDefined();
         expect(userIdArg?.description).toContain('User ID');
         expect(userIdArg?.required).toBe(true);
+      });
+    });
+
+    it('should provide completion suggestions when typing partial user ID', async () => {
+      await withServer(async server => {
+        // Clear all users first
+        await server.callTool('clear_all_users', {});
+
+        // Create users with different ID patterns for testing
+        const user1Result = await server.callTool('create_user', {
+          name: 'Completion Test User 1',
+          email: 'completion1@example.com',
+          role: 'user',
+        });
+        const user1 = extractToolResult(user1Result);
+        const user1Data = JSON.parse(user1.content[0].text!) as { id: string };
+
+        const user2Result = await server.callTool('create_user', {
+          name: 'Completion Test User 2',
+          email: 'completion2@example.com',
+          role: 'admin',
+        });
+        const user2 = extractToolResult(user2Result);
+        const user2Data = JSON.parse(user2.content[0].text!) as { id: string };
+
+        // Test completion with no input - should return all user IDs
+        const allCompletionResult = await server.getPromptCompletion('get_user_details', {});
+        const allCompletion = extractPromptCompletion(allCompletionResult);
+        expect(allCompletion.argument).toBeDefined();
+        expect(allCompletion.argument.userId).toBeDefined();
+        expect(Array.isArray(allCompletion.argument.userId)).toBe(true);
+        expect(allCompletion.argument.userId.length).toBeGreaterThanOrEqual(2);
+        expect(allCompletion.argument.userId).toContain(user1Data.id);
+        expect(allCompletion.argument.userId).toContain(user2Data.id);
+
+        // Test completion with partial input - should return matching user IDs
+        // Use the first few characters of user1's ID
+        const partialId = user1Data.id.substring(0, Math.min(4, user1Data.id.length));
+        const partialCompletionResult = await server.getPromptCompletion('get_user_details', {
+          userId: partialId,
+        });
+        const partialCompletion = extractPromptCompletion(partialCompletionResult);
+        expect(partialCompletion.argument).toBeDefined();
+        expect(partialCompletion.argument.userId).toBeDefined();
+        expect(Array.isArray(partialCompletion.argument.userId)).toBe(true);
+        // Should include user1 since it starts with the partial ID
+        expect(partialCompletion.argument.userId).toContain(user1Data.id);
+        // All returned IDs should start with the partial input
+        partialCompletion.argument.userId.forEach(id => {
+          expect(id.toLowerCase().startsWith(partialId.toLowerCase())).toBe(true);
+        });
       });
     });
   });

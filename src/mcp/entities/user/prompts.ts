@@ -3,6 +3,15 @@ import { z } from 'zod';
 import { db } from '../../../database.js';
 import { createPromptMessage, schema, validateInput } from '../../utils.js';
 
+// Schema for prompts/complete request
+const CompletePromptRequestSchema = z.object({
+  method: z.literal('prompts/complete'),
+  params: z.object({
+    name: z.string(),
+    arguments: z.record(z.unknown()).optional(),
+  }),
+});
+
 // Define schemas for prompt arguments
 const getUserPromptSchema = z.object({
   userId: z.string().describe('User ID to get details for'),
@@ -38,6 +47,46 @@ Last Updated: ${user.updatedAt.toISOString()}`
       );
     }
   );
+
+  // Add completion handler for get_user_details prompt
+  // The MCP SDK doesn't have built-in prompt completion, so we use the low-level API
+  mcpServer.server.setRequestHandler(CompletePromptRequestSchema, async request => {
+    if (request.params.name !== 'get_user_details') {
+      // Return empty completion for other prompts
+      return {
+        argument: {},
+      };
+    }
+
+    const params = request.params;
+
+    // If userId is provided (even partially), filter users by it
+    if (params.arguments && 'userId' in params.arguments) {
+      const userIdValue = params.arguments.userId;
+      const partialUserId = typeof userIdValue === 'string' ? userIdValue : '';
+      const allUsers = db.getAllUsers();
+
+      // Filter users whose IDs start with the partial input
+      const matchingUserIds = allUsers
+        .filter(user => user.id.toLowerCase().startsWith(partialUserId.toLowerCase()))
+        .map(user => user.id);
+
+      // Return completion suggestions
+      return {
+        argument: {
+          userId: matchingUserIds,
+        },
+      };
+    }
+
+    // If no userId provided, return all user IDs
+    const allUsers = db.getAllUsers();
+    return {
+      argument: {
+        userId: allUsers.map(user => user.id),
+      },
+    };
+  });
 
   mcpServer.registerPrompt(
     'list_all_users',

@@ -190,18 +190,10 @@ pnpm test:coverage
 You can test the MCP server interactively using the MCP Inspector tool:
 
 ```bash
-# First, build the project
-pnpm build
-
-# Then run the inspector with the built server
-npx @modelcontextprotocol/inspector node dist/index.js
+pnpm build && npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-Alternatively, you can test the server in development mode using tsx:
-
-```bash
-npx @modelcontextprotocol/inspector pnpm dev
-```
+**Note:** When using the inspector, always use the built server (`node dist/index.js`) rather than `pnpm dev`, as pnpm's output can interfere with JSON-RPC communication over stdio.
 
 The inspector will open a web interface where you can:
 - Browse all available tools

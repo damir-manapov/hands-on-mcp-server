@@ -21,6 +21,7 @@ export function createServer(): McpServer {
 
   // Error handling
   mcpServer.server.onerror = error => {
+    // Log errors to stderr (won't interfere with JSON-RPC on stdout)
     console.error('[MCP Error]', error);
   };
 
