@@ -105,4 +105,173 @@ describe('User Resources', () => {
       }
     });
   });
+
+  describe('User by ID resource', () => {
+    it('should read user by ID when user exists', async () => {
+      const testUser = db.createUser({
+        name: 'Individual User Test',
+        email: 'individual@example.com',
+        role: 'admin',
+      });
+
+      const registeredResourceTemplates = mcpServer['_registeredResourceTemplates'];
+      const resourceTemplate = registeredResourceTemplates['User by ID'];
+      expect(resourceTemplate).toBeDefined();
+
+      if (resourceTemplate) {
+        const uri = new URL(`user-manager://users/${testUser.id}`);
+        const variables = { userId: testUser.id };
+        const result = await resourceTemplate.readCallback(uri, variables, {});
+
+        expect(result).toBeDefined();
+        expect(result.contents).toBeDefined();
+        expect(result.contents.length).toBe(1);
+        expect(result.contents[0].uri).toBe(`user-manager://users/${testUser.id}`);
+        expect(result.contents[0].mimeType).toBe('application/json');
+
+        const user = JSON.parse(result.contents[0].text);
+        expect(user.id).toBe(testUser.id);
+        expect(user.name).toBe('Individual User Test');
+        expect(user.email).toBe('individual@example.com');
+        expect(user.role).toBe('admin');
+      }
+    });
+
+    it('should return error when user does not exist', async () => {
+      const registeredResourceTemplates = mcpServer['_registeredResourceTemplates'];
+      const resourceTemplate = registeredResourceTemplates['User by ID'];
+      expect(resourceTemplate).toBeDefined();
+
+      if (resourceTemplate) {
+        const uri = new URL('user-manager://users/non-existent-id');
+        const variables = { userId: 'non-existent-id' };
+        const result = await resourceTemplate.readCallback(uri, variables, {});
+
+        expect(result).toBeDefined();
+        expect(result.contents).toBeDefined();
+        expect(result.contents.length).toBe(1);
+        expect(result.contents[0].mimeType).toBe('application/json');
+
+        const error = JSON.parse(result.contents[0].text);
+        expect(error.error).toBe('User not found');
+      }
+    });
+
+    it('should return error when userId is missing', async () => {
+      const registeredResourceTemplates = mcpServer['_registeredResourceTemplates'];
+      const resourceTemplate = registeredResourceTemplates['User by ID'];
+      expect(resourceTemplate).toBeDefined();
+
+      if (resourceTemplate) {
+        const uri = new URL('user-manager://users/');
+        const variables: { userId?: string } = {};
+        const result = await resourceTemplate.readCallback(uri, variables, {});
+
+        expect(result).toBeDefined();
+        expect(result.contents).toBeDefined();
+        expect(result.contents.length).toBe(1);
+        expect(result.contents[0].mimeType).toBe('application/json');
+
+        const error = JSON.parse(result.contents[0].text);
+        expect(error.error).toBe('User ID is required');
+      }
+    });
+
+    it('should list all user resources', async () => {
+      const user1 = db.createUser({
+        name: 'List User 1',
+        email: 'list1@example.com',
+        role: 'user',
+      });
+      const user2 = db.createUser({
+        name: 'List User 2',
+        email: 'list2@example.com',
+        role: 'admin',
+      });
+
+      const registeredResourceTemplates = mcpServer['_registeredResourceTemplates'];
+      const resourceTemplate = registeredResourceTemplates['User by ID'];
+      expect(resourceTemplate).toBeDefined();
+
+      if (resourceTemplate && resourceTemplate.resourceTemplate.listCallback) {
+        const result = await resourceTemplate.resourceTemplate.listCallback({}, {});
+
+        expect(result).toBeDefined();
+        expect(result.resources).toBeDefined();
+        expect(result.resources.length).toBeGreaterThanOrEqual(2);
+
+        const uris = result.resources.map((r: { uri: string }) => r.uri);
+        expect(uris).toContain(`user-manager://users/${user1.id}`);
+        expect(uris).toContain(`user-manager://users/${user2.id}`);
+
+        const user1Resource = result.resources.find(
+          (r: { uri: string }) => r.uri === `user-manager://users/${user1.id}`
+        );
+        expect(user1Resource).toBeDefined();
+        expect(user1Resource.name).toBe('List User 1');
+        expect(user1Resource.description).toContain('List User 1');
+        expect(user1Resource.description).toContain('list1@example.com');
+      }
+    });
+
+    it('should provide userId autocomplete', async () => {
+      const user1 = db.createUser({
+        name: 'Complete User 1',
+        email: 'complete1@example.com',
+        role: 'user',
+      });
+      const user2 = db.createUser({
+        name: 'Complete User 2',
+        email: 'complete2@example.com',
+        role: 'admin',
+      });
+
+      const registeredResourceTemplates = mcpServer['_registeredResourceTemplates'];
+      const resourceTemplate = registeredResourceTemplates['User by ID'];
+      expect(resourceTemplate).toBeDefined();
+
+      if (resourceTemplate) {
+        const completeCallback = resourceTemplate.resourceTemplate.completeCallback('userId');
+        expect(completeCallback).toBeDefined();
+
+        if (completeCallback) {
+          const completions = await completeCallback('', {});
+          expect(Array.isArray(completions)).toBe(true);
+          expect(completions.length).toBeGreaterThanOrEqual(2);
+          expect(completions).toContain(user1.id);
+          expect(completions).toContain(user2.id);
+        }
+      }
+    });
+
+    it('should return valid JSON structure for existing user', async () => {
+      const testUser = db.createUser({
+        name: 'Structure Test User',
+        email: 'structure@example.com',
+        role: 'viewer',
+      });
+
+      const registeredResourceTemplates = mcpServer['_registeredResourceTemplates'];
+      const resourceTemplate = registeredResourceTemplates['User by ID'];
+      expect(resourceTemplate).toBeDefined();
+
+      if (resourceTemplate) {
+        const uri = new URL(`user-manager://users/${testUser.id}`);
+        const variables = { userId: testUser.id };
+        const result = await resourceTemplate.readCallback(uri, variables, {});
+        const user = JSON.parse(result.contents[0].text);
+
+        expect(user).toHaveProperty('id');
+        expect(user).toHaveProperty('name');
+        expect(user).toHaveProperty('email');
+        expect(user).toHaveProperty('role');
+        expect(user).toHaveProperty('createdAt');
+        expect(user).toHaveProperty('updatedAt');
+        expect(typeof user.id).toBe('string');
+        expect(typeof user.name).toBe('string');
+        expect(typeof user.email).toBe('string');
+        expect(typeof user.role).toBe('string');
+      }
+    });
+  });
 });
