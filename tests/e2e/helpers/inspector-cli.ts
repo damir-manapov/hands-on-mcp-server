@@ -468,6 +468,7 @@ export class PersistentServer {
 
   /**
    * Get prompt completion suggestions on the persistent server
+   * Uses the old prompts/complete API (for backward compatibility with existing tests)
    */
   async getPromptCompletion(
     promptName: string,
@@ -476,6 +477,30 @@ export class PersistentServer {
     return this.sendRequest('prompts/complete', {
       name: promptName,
       arguments: args,
+    });
+  }
+
+  /**
+   * Get completion suggestions using the completion/complete API
+   * This is the actual API format used by MCP clients
+   */
+  async getCompletion(
+    argumentName: string,
+    argumentValue: string,
+    refType: string,
+    refName: string,
+    context?: Record<string, unknown>
+  ): Promise<InspectorCliResult> {
+    return this.sendRequest('completion/complete', {
+      argument: {
+        name: argumentName,
+        value: argumentValue,
+      },
+      ref: {
+        type: refType,
+        name: refName,
+      },
+      context: context ? { arguments: context } : undefined,
     });
   }
 
@@ -550,8 +575,15 @@ export interface PromptCompletionResult {
   argument: Record<string, string[]>;
 }
 
+export interface CompletionResult {
+  completion: {
+    values: string[];
+    hasMore: boolean;
+  };
+}
+
 /**
- * Extract prompt completion result from InspectorCliResult
+ * Extract prompt completion result from InspectorCliResult (old API format)
  * Throws if the result is invalid or missing
  */
 export function extractPromptCompletion(result: InspectorCliResult): PromptCompletionResult {
@@ -566,6 +598,37 @@ export function extractPromptCompletion(result: InspectorCliResult): PromptCompl
   const completionResult = result.json.result as PromptCompletionResult;
   if (!completionResult || typeof completionResult !== 'object' || !('argument' in completionResult)) {
     throw new Error(`Invalid completion result format: ${JSON.stringify(completionResult)}`);
+  }
+
+  return completionResult;
+}
+
+/**
+ * Extract completion result from InspectorCliResult (new completion/complete API)
+ * Throws if the result is invalid or missing
+ */
+export function extractCompletion(result: InspectorCliResult): CompletionResult {
+  if (!result.success) {
+    throw new Error(`Completion failed: ${result.error || 'Unknown error'}`);
+  }
+
+  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  const completionResult = result.json.result as CompletionResult;
+  if (
+    !completionResult ||
+    typeof completionResult !== 'object' ||
+    !('completion' in completionResult) ||
+    !Array.isArray(completionResult.completion.values)
+  ) {
+    throw new Error(`Invalid completion result format: ${JSON.stringify(completionResult)}`);
+  }
+
+  // Validate that all values are strings
+  if (!completionResult.completion.values.every(v => typeof v === 'string')) {
+    throw new Error(`Invalid completion values: expected array of strings, got ${JSON.stringify(completionResult.completion.values)}`);
   }
 
   return completionResult;

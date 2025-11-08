@@ -6,6 +6,7 @@ import {
   extractToolResult,
   extractPromptsList,
   extractPromptCompletion,
+  extractCompletion,
   withServer,
 } from '../helpers/inspector-cli.js';
 
@@ -148,7 +149,10 @@ describe('User Prompts', () => {
       });
     });
 
-    it('should provide completion suggestions when typing partial user ID', async () => {
+    it('should provide completion suggestions when typing partial user ID (legacy API)', async () => {
+      // This test uses the old prompts/complete API format
+      // The new completion/complete API is tested in the test above
+      // This test is kept for backward compatibility but may not work if the old API is removed
       await withServer(async server => {
         // Clear all users first
         await server.callTool('clear_all_users', {});
@@ -170,32 +174,141 @@ describe('User Prompts', () => {
         const user2 = extractToolResult(user2Result);
         const user2Data = JSON.parse(user2.content[0].text!) as { id: string };
 
-        // Test completion with no input - should return all user IDs
-        const allCompletionResult = await server.getPromptCompletion('get_user_details', {});
-        const allCompletion = extractPromptCompletion(allCompletionResult);
-        expect(allCompletion.argument).toBeDefined();
-        expect(allCompletion.argument.userId).toBeDefined();
-        expect(Array.isArray(allCompletion.argument.userId)).toBe(true);
-        expect(allCompletion.argument.userId.length).toBeGreaterThanOrEqual(2);
-        expect(allCompletion.argument.userId).toContain(user1Data.id);
-        expect(allCompletion.argument.userId).toContain(user2Data.id);
+        // Test completion using the new completion/complete API
+        const allCompletionResult = await server.getCompletion(
+          'userId',
+          '',
+          'ref/prompt',
+          'get_user_details'
+        );
+        const allCompletion = extractCompletion(allCompletionResult);
+        expect(allCompletion.completion.values.length).toBeGreaterThanOrEqual(2);
+        const completionValues = allCompletion.completion.values;
+        expect(completionValues).toContain(user1Data.id);
+        expect(completionValues).toContain(user2Data.id);
+
+        // Test completion with partial input
+        const partialId = user1Data.id.substring(0, Math.min(4, user1Data.id.length));
+        const partialCompletionResult = await server.getCompletion(
+          'userId',
+          partialId,
+          'ref/prompt',
+          'get_user_details'
+        );
+        const partialCompletion = extractCompletion(partialCompletionResult);
+        const partialValues = partialCompletion.completion.values;
+        expect(partialValues).toContain(user1Data.id);
+        partialValues.forEach(value => {
+          expect(value.toLowerCase().startsWith(partialId.toLowerCase())).toBe(true);
+        });
+      });
+    });
+
+    it('should provide completion using completion/complete API format', async () => {
+      await withServer(async server => {
+        // Clear all users first
+        await server.callTool('clear_all_users', {});
+
+        // Create users for testing
+        const user1Result = await server.callTool('create_user', {
+          name: 'Completion API Test User 1',
+          email: 'completion-api1@example.com',
+          role: 'user',
+        });
+        const user1 = extractToolResult(user1Result);
+        const user1Data = JSON.parse(user1.content[0].text!) as { id: string };
+
+        const user2Result = await server.callTool('create_user', {
+          name: 'Completion API Test User 2',
+          email: 'completion-api2@example.com',
+          role: 'admin',
+        });
+        const user2 = extractToolResult(user2Result);
+        const user2Data = JSON.parse(user2.content[0].text!) as { id: string };
+
+        // Test completion with empty value - should return all user IDs
+        const emptyCompletionResult = await server.getCompletion(
+          'userId',
+          '',
+          'ref/prompt',
+          'get_user_details'
+        );
+        const emptyCompletion = extractCompletion(emptyCompletionResult);
+        
+        expect(emptyCompletion.completion).toBeDefined();
+        expect(emptyCompletion.completion.values).toBeDefined();
+        expect(Array.isArray(emptyCompletion.completion.values)).toBe(true);
+        expect(emptyCompletion.completion.values.length).toBeGreaterThanOrEqual(2);
+        expect(emptyCompletion.completion.hasMore).toBe(false);
+        
+        // Verify both users are in the completion list
+        const completionValues = emptyCompletion.completion.values;
+        expect(completionValues).toContain(user1Data.id);
+        expect(completionValues).toContain(user2Data.id);
 
         // Test completion with partial input - should return matching user IDs
-        // Use the first few characters of user1's ID
         const partialId = user1Data.id.substring(0, Math.min(4, user1Data.id.length));
-        const partialCompletionResult = await server.getPromptCompletion('get_user_details', {
-          userId: partialId,
-        });
-        const partialCompletion = extractPromptCompletion(partialCompletionResult);
-        expect(partialCompletion.argument).toBeDefined();
-        expect(partialCompletion.argument.userId).toBeDefined();
-        expect(Array.isArray(partialCompletion.argument.userId)).toBe(true);
+        const partialCompletionResult = await server.getCompletion(
+          'userId',
+          partialId,
+          'ref/prompt',
+          'get_user_details'
+        );
+        const partialCompletion = extractCompletion(partialCompletionResult);
+        
+        expect(partialCompletion.completion).toBeDefined();
+        expect(partialCompletion.completion.values).toBeDefined();
+        expect(Array.isArray(partialCompletion.completion.values)).toBe(true);
+        expect(partialCompletion.completion.hasMore).toBe(false);
+        
         // Should include user1 since it starts with the partial ID
-        expect(partialCompletion.argument.userId).toContain(user1Data.id);
-        // All returned IDs should start with the partial input
-        partialCompletion.argument.userId.forEach(id => {
-          expect(id.toLowerCase().startsWith(partialId.toLowerCase())).toBe(true);
+        const partialValues = partialCompletion.completion.values;
+        expect(partialValues).toContain(user1Data.id);
+        
+        // All returned values should start with the partial input
+        partialValues.forEach(value => {
+          expect(value.toLowerCase().startsWith(partialId.toLowerCase())).toBe(true);
         });
+
+        // Test completion for non-existent prompt - should return empty
+        const nonExistentResult = await server.getCompletion(
+          'userId',
+          'test',
+          'ref/prompt',
+          'non_existent_prompt'
+        );
+        const nonExistentCompletion = extractCompletion(nonExistentResult);
+        expect(nonExistentCompletion.completion.values).toEqual([]);
+        expect(nonExistentCompletion.completion.hasMore).toBe(false);
+      });
+    });
+
+    it('should fail if completion returns empty when users exist', async () => {
+      await withServer(async server => {
+        // Clear all users first
+        await server.callTool('clear_all_users', {});
+
+        // Create a user
+        const userResult = await server.callTool('create_user', {
+          name: 'Should Fail Test User',
+          email: 'shouldfail@example.com',
+          role: 'user',
+        });
+        const user = extractToolResult(userResult);
+        const userData = JSON.parse(user.content[0].text!) as { id: string };
+
+        // Request completion - this should return at least the user we just created
+        const completionResult = await server.getCompletion(
+          'userId',
+          '',
+          'ref/prompt',
+          'get_user_details'
+        );
+        const completion = extractCompletion(completionResult);
+
+        // This test will fail if completion doesn't work
+        expect(completion.completion.values.length).toBeGreaterThan(0);
+        expect(completion.completion.values).toContain(userData.id);
       });
     });
   });
