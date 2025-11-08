@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { db } from '../../../database.js';
-import { createToolConfig, validateInput } from '../../../utils.js';
+import { createToolConfig, validateInput } from '../../utils.js';
 
 // Define schemas for validation
 const createUserSchema = z.object({
