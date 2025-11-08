@@ -19,6 +19,38 @@ export interface ToolsListResult {
   tools: Array<{ name: string; description?: string }>;
 }
 
+export interface ResourceResult {
+  contents: Array<{
+    uri: string;
+    mimeType: string;
+    text?: string;
+  }>;
+}
+
+export interface ResourcesListResult {
+  resources: Array<{
+    uri: string;
+    name?: string;
+    description?: string;
+    mimeType?: string;
+  }>;
+}
+
+export interface PromptResult {
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: { type: 'text'; text: string };
+  }>;
+}
+
+export interface PromptsListResult {
+  prompts: Array<{
+    name: string;
+    description?: string;
+    args?: unknown;
+  }>;
+}
+
 /**
  * Extract tool result from InspectorCliResult
  * Throws if the result is invalid or missing
@@ -250,6 +282,146 @@ export async function listToolsViaInspector(
 }
 
 /**
+ * Read a resource by URI using JSON-RPC over stdio
+ */
+export async function readResourceViaInspector(
+  uri: string,
+  serverCommand: string = DEFAULT_SERVER_COMMAND
+): Promise<InspectorCliResult> {
+  return sendJsonRpcRequest(serverCommand, 'resources/read', { uri });
+}
+
+/**
+ * List all resources using JSON-RPC over stdio
+ */
+export async function listResourcesViaInspector(
+  serverCommand: string = DEFAULT_SERVER_COMMAND
+): Promise<InspectorCliResult> {
+  return sendJsonRpcRequest(serverCommand, 'resources/list', {});
+}
+
+/**
+ * Extract resource result from InspectorCliResult
+ * Throws if the result is invalid or missing
+ */
+export function extractResourceResult(result: InspectorCliResult): ResourceResult {
+  if (!result.json || typeof result.json !== 'object') {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  // Check for JSON-RPC error
+  if ('error' in result.json) {
+    const error = result.json.error as { code?: number; message?: string };
+    throw new Error(
+      `Resource read failed: ${error.message || JSON.stringify(error)}`
+    );
+  }
+
+  if (!('result' in result.json)) {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  const resourceResult = result.json.result as ResourceResult;
+  if (!resourceResult || !resourceResult.contents) {
+    throw new Error(`Invalid resource result format: ${JSON.stringify(resourceResult)}`);
+  }
+
+  return resourceResult;
+}
+
+/**
+ * Extract resources list from InspectorCliResult
+ * Throws if the result is invalid or missing
+ */
+export function extractResourcesList(result: InspectorCliResult): ResourcesListResult {
+  if (!result.success) {
+    throw new Error(`Resources list failed: ${result.error || 'Unknown error'}`);
+  }
+
+  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  const resourcesResult = result.json.result as ResourcesListResult;
+  if (!resourcesResult || !Array.isArray(resourcesResult.resources)) {
+    throw new Error(`Invalid resources list format: ${JSON.stringify(resourcesResult)}`);
+  }
+
+  return resourcesResult;
+}
+
+/**
+ * Get a prompt using JSON-RPC over stdio
+ */
+export async function getPromptViaInspector(
+  promptName: string,
+  args: Record<string, unknown> = {},
+  serverCommand: string = DEFAULT_SERVER_COMMAND
+): Promise<InspectorCliResult> {
+  return sendJsonRpcRequest(serverCommand, 'prompts/get', {
+    name: promptName,
+    arguments: args,
+  });
+}
+
+/**
+ * List all prompts using JSON-RPC over stdio
+ */
+export async function listPromptsViaInspector(
+  serverCommand: string = DEFAULT_SERVER_COMMAND
+): Promise<InspectorCliResult> {
+  return sendJsonRpcRequest(serverCommand, 'prompts/list', {});
+}
+
+/**
+ * Extract prompt result from InspectorCliResult
+ * Throws if the result is invalid or missing
+ */
+export function extractPromptResult(result: InspectorCliResult): PromptResult {
+  if (!result.json || typeof result.json !== 'object') {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  // Check for JSON-RPC error
+  if ('error' in result.json) {
+    const error = result.json.error as { code?: number; message?: string };
+    throw new Error(`Prompt get failed: ${error.message || JSON.stringify(error)}`);
+  }
+
+  if (!('result' in result.json)) {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  const promptResult = result.json.result as PromptResult;
+  if (!promptResult || !promptResult.messages) {
+    throw new Error(`Invalid prompt result format: ${JSON.stringify(promptResult)}`);
+  }
+
+  return promptResult;
+}
+
+/**
+ * Extract prompts list from InspectorCliResult
+ * Throws if the result is invalid or missing
+ */
+export function extractPromptsList(result: InspectorCliResult): PromptsListResult {
+  if (!result.success) {
+    throw new Error(`Prompts list failed: ${result.error || 'Unknown error'}`);
+  }
+
+  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  const promptsResult = result.json.result as PromptsListResult;
+  if (!promptsResult || !Array.isArray(promptsResult.prompts)) {
+    throw new Error(`Invalid prompts list format: ${JSON.stringify(promptsResult)}`);
+  }
+
+  return promptsResult;
+}
+
+/**
  * Persistent server process that can handle multiple JSON-RPC requests
  * This allows testing operations that require state persistence across calls
  */
@@ -438,6 +610,37 @@ export class PersistentServer {
    */
   async listTools(): Promise<InspectorCliResult> {
     return this.sendRequest('tools/list', {});
+  }
+
+  /**
+   * Read a resource on the persistent server
+   */
+  async readResource(uri: string): Promise<InspectorCliResult> {
+    return this.sendRequest('resources/read', { uri });
+  }
+
+  /**
+   * List resources on the persistent server
+   */
+  async listResources(): Promise<InspectorCliResult> {
+    return this.sendRequest('resources/list', {});
+  }
+
+  /**
+   * Get a prompt on the persistent server
+   */
+  async getPrompt(promptName: string, args: Record<string, unknown> = {}): Promise<InspectorCliResult> {
+    return this.sendRequest('prompts/get', {
+      name: promptName,
+      arguments: args,
+    });
+  }
+
+  /**
+   * List prompts on the persistent server
+   */
+  async listPrompts(): Promise<InspectorCliResult> {
+    return this.sendRequest('prompts/list', {});
   }
 
   /**
