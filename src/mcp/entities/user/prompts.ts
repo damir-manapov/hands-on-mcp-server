@@ -23,16 +23,19 @@ export function registerUserPrompts(mcpServer: McpServer): void {
       const user = db.getUser(validated.userId);
 
       if (!user) {
-        return createPromptMessage(`User with ID "${validated.userId}" not found.`);
+        return createPromptMessage('user', `User with ID "${validated.userId}" not found.`);
       }
 
-      return createPromptMessage(`User Details:
+      return createPromptMessage(
+        'user',
+        `User Details:
 ID: ${user.id}
 Name: ${user.name}
 Email: ${user.email}
 Role: ${user.role}
 Created: ${user.createdAt.toISOString()}
-Last Updated: ${user.updatedAt.toISOString()}`);
+Last Updated: ${user.updatedAt.toISOString()}`
+      );
     }
   );
 
@@ -45,14 +48,14 @@ Last Updated: ${user.updatedAt.toISOString()}`);
       const users = db.getAllUsers();
 
       if (users.length === 0) {
-        return createPromptMessage('No users found in the system.');
+        return createPromptMessage('user', 'No users found in the system.');
       }
 
       const userList = users
         .map(user => `- ${user.name} (${user.email}) - Role: ${user.role} - ID: ${user.id}`)
         .join('\n');
 
-      return createPromptMessage(`All Users (${users.length} total):\n\n${userList}`);
+      return createPromptMessage('user', `All Users (${users.length} total):\n\n${userList}`);
     }
   );
 }

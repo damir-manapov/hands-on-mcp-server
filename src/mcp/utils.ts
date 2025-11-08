@@ -39,16 +39,19 @@ export function validateInput<T>(schema: z.ZodType<T>, input: unknown): T {
 
 // Helper function to create prompt messages
 // Simplifies the creation of prompt message responses
-export function createPromptMessage(text: string): {
+export function createPromptMessage(
+  role: 'user' | 'assistant',
+  text: string
+): {
   messages: Array<{
-    role: 'user';
+    role: 'user' | 'assistant';
     content: { type: 'text'; text: string };
   }>;
 } {
   return {
     messages: [
       {
-        role: 'user' as const,
+        role,
         content: {
           type: 'text' as const,
           text,
