@@ -23,10 +23,10 @@ describe('User Prompts', () => {
       await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
-          name: 'Prompt Test User',
-          email: 'prompttest@example.com',
-          role: 'admin',
-        });
+        name: 'Prompt Test User',
+        email: 'prompttest@example.com',
+        role: 'admin',
+      });
 
         // Get the user ID from the all users resource
         const allUsersResult = await server.readResource('user-manager://users');
@@ -57,8 +57,8 @@ describe('User Prompts', () => {
     it('should return error message for non-existent user', async () => {
       await withServer(async server => {
         const result = await server.getPrompt('get_user_details', {
-          userId: 'non-existent-id',
-        });
+        userId: 'non-existent-id',
+      });
         const promptResult = extractPromptResult(result);
 
         expect(promptResult.messages).toBeDefined();
@@ -74,10 +74,10 @@ describe('User Prompts', () => {
       await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
-          name: 'Complete User',
-          email: 'complete@example.com',
-          role: 'user',
-        });
+        name: 'Complete User',
+        email: 'complete@example.com',
+        role: 'user',
+      });
 
         // Get the user ID
         const allUsersResult = await server.readResource('user-manager://users');
@@ -330,20 +330,20 @@ describe('User Prompts', () => {
       await withServer(async server => {
         // Create users
         await server.callTool('create_user', {
-          name: 'List User One',
-          email: 'list1@example.com',
-          role: 'user',
-        });
+        name: 'List User One',
+        email: 'list1@example.com',
+        role: 'user',
+      });
         await server.callTool('create_user', {
-          name: 'List User Two',
-          email: 'list2@example.com',
-          role: 'admin',
-        });
+        name: 'List User Two',
+        email: 'list2@example.com',
+        role: 'admin',
+      });
         await server.callTool('create_user', {
-          name: 'List User Three',
-          email: 'list3@example.com',
-          role: 'viewer',
-        });
+        name: 'List User Three',
+        email: 'list3@example.com',
+        role: 'viewer',
+      });
 
         // Get user IDs for verification
         const allUsersResult = await server.readResource('user-manager://users');
@@ -381,10 +381,10 @@ describe('User Prompts', () => {
       await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
-          name: 'Role Test User',
-          email: 'role@example.com',
-          role: 'admin',
-        });
+        name: 'Role Test User',
+        email: 'role@example.com',
+        role: 'admin',
+      });
 
         // Get prompt
         const result = await server.getPrompt('list_all_users', {});
@@ -400,10 +400,10 @@ describe('User Prompts', () => {
       await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
-          name: 'Format User',
-          email: 'format@example.com',
-          role: 'user',
-        });
+        name: 'Format User',
+        email: 'format@example.com',
+        role: 'user',
+      });
 
         // Get prompt
         const result = await server.getPrompt('list_all_users', {});
@@ -415,7 +415,7 @@ describe('User Prompts', () => {
         // Should have parentheses for email
         expect(text).toContain('(');
         expect(text).toContain(')');
-      });
+    });
     });
   });
 });

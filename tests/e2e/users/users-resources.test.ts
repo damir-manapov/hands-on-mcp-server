@@ -43,16 +43,16 @@ describe('User Resources', () => {
       await withServer(async server => {
         // Create users via tools
         await server.callTool('create_user', {
-          name: 'Resource Test User 1',
-          email: 'resource1@example.com',
-          role: 'user',
-        });
+        name: 'Resource Test User 1',
+        email: 'resource1@example.com',
+        role: 'user',
+      });
 
         await server.callTool('create_user', {
-          name: 'Resource Test User 2',
-          email: 'resource2@example.com',
-          role: 'admin',
-        });
+        name: 'Resource Test User 2',
+        email: 'resource2@example.com',
+        role: 'admin',
+      });
 
         // Read the resource
         const result = await server.readResource('user-manager://users');
@@ -84,10 +84,10 @@ describe('User Resources', () => {
       await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
-          name: 'JSON Test User',
-          email: 'json@example.com',
-          role: 'viewer',
-        });
+        name: 'JSON Test User',
+        email: 'json@example.com',
+        role: 'viewer',
+      });
 
         // Read the resource
         const result = await server.readResource('user-manager://users');
@@ -113,10 +113,10 @@ describe('User Resources', () => {
       await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
-          name: 'Individual User Test',
-          email: 'individual@example.com',
-          role: 'admin',
-        });
+        name: 'Individual User Test',
+        email: 'individual@example.com',
+        role: 'admin',
+      });
 
         // Get the user ID from the all users resource
         const allUsersResult = await server.readResource('user-manager://users');
@@ -170,7 +170,7 @@ describe('User Resources', () => {
           // Expected - resource not found
           expect(error).toBeInstanceOf(Error);
           expect((error as Error).message).toContain('Resource');
-        }
+      }
       });
     });
 
@@ -178,15 +178,15 @@ describe('User Resources', () => {
       await withServer(async server => {
         // Create users
         await server.callTool('create_user', {
-          name: 'List User 1',
-          email: 'list1@example.com',
-          role: 'user',
-        });
+        name: 'List User 1',
+        email: 'list1@example.com',
+        role: 'user',
+      });
         await server.callTool('create_user', {
-          name: 'List User 2',
-          email: 'list2@example.com',
-          role: 'admin',
-        });
+        name: 'List User 2',
+        email: 'list2@example.com',
+        role: 'admin',
+      });
 
         // List resources
         const result = await server.listResources();
@@ -215,15 +215,15 @@ describe('User Resources', () => {
       await withServer(async server => {
         // Create users
         await server.callTool('create_user', {
-          name: 'Complete User 1',
-          email: 'complete1@example.com',
-          role: 'user',
-        });
+        name: 'Complete User 1',
+        email: 'complete1@example.com',
+        role: 'user',
+      });
         await server.callTool('create_user', {
-          name: 'Complete User 2',
-          email: 'complete2@example.com',
-          role: 'admin',
-        });
+        name: 'Complete User 2',
+        email: 'complete2@example.com',
+        role: 'admin',
+      });
 
         // List resources to verify users exist (indirect test of completion)
         const result = await server.listResources();
@@ -240,10 +240,10 @@ describe('User Resources', () => {
       await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
-          name: 'Structure Test User',
-          email: 'structure@example.com',
-          role: 'viewer',
-        });
+        name: 'Structure Test User',
+        email: 'structure@example.com',
+        role: 'viewer',
+      });
 
         // Get the user ID from the all users resource
         const allUsersResult = await server.readResource('user-manager://users');

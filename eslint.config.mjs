@@ -4,6 +4,11 @@ import prettierConfig from 'eslint-config-prettier';
 import prettierPlugin from 'eslint-plugin-prettier';
 
 export default tseslint.config(
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: 'error',
+    },
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   prettierConfig,
@@ -77,6 +82,15 @@ export default tseslint.config(
         { allowNumber: true, allowBoolean: true },
       ],
       '@typescript-eslint/no-deprecated': 'error',
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-expect-error': 'allow-with-description',
+          'ts-ignore': true,
+          'ts-nocheck': true,
+          'ts-check': false,
+        },
+      ],
       '@typescript-eslint/ban-ts-comment': [
         'error',
         {

@@ -84,11 +84,48 @@ export function registerTagTools(mcpServer: McpServer): void {
     createToolConfig('Delete a tag', deleteTagSchema),
     async (args: unknown) => {
       const validated = validateInput(deleteTagSchema, args);
-      const deleted = db.deleteTag(validated.tagId);
-      if (!deleted) {
+      const tag = db.getTag(validated.tagId);
+
+      if (!tag) {
         return createToolResponse('Tag not found', true);
       }
-      return createToolResponse(JSON.stringify({ success: true, message: 'Tag deleted' }, null, 2));
+
+      // Request user confirmation before deleting
+      const result = await mcpServer.server.elicitInput({
+        message: `Are you sure you want to delete the tag "${tag.name}" (ID: ${tag.id})? This action cannot be undone.`,
+        requestedSchema: {
+          type: 'object',
+          properties: {
+            confirm: {
+              type: 'boolean',
+              title: 'Confirm deletion',
+              description: 'Check this box to confirm you want to delete this tag',
+            },
+          },
+          required: ['confirm'],
+        },
+      });
+
+      // Handle user response
+      if (result.action === 'accept' && result.content?.confirm === true) {
+        const deleted = db.deleteTag(validated.tagId);
+        if (!deleted) {
+          return createToolResponse('Tag deletion failed', true);
+        }
+        return createToolResponse(
+          JSON.stringify(
+            { success: true, message: `Tag "${tag.name}" deleted successfully` },
+            null,
+            2
+          )
+        );
+      }
+
+      // User declined or cancelled the deletion
+      const message =
+        result.action === 'decline' ? 'Tag deletion declined by user' : 'Tag deletion cancelled';
+
+      return createToolResponse(JSON.stringify({ success: false, message }, null, 2));
     }
   );
 }

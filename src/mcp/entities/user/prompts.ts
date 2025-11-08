@@ -15,7 +15,6 @@ export function registerUserPrompts(mcpServer: McpServer): void {
     {
       description: 'Get detailed information about a specific user',
       // Use completable for userId to enable autocompletion
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       argsSchema: {
         userId: completable(
           z.string().describe('User ID to get details for'),

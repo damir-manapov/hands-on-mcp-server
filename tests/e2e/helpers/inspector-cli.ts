@@ -219,6 +219,14 @@ export class PersistentServer {
   private stderrBuffer = '';
   private isReady = false;
   private readyPromise: Promise<void>;
+  private pendingElicitations = new Map<number, {
+    resolve: (id: number) => void;
+    params: { message: string; requestedSchema: unknown };
+  }>();
+  private elicitationResolvers: Array<{
+    resolve: (id: number) => void;
+    timeout: NodeJS.Timeout;
+  }> = [];
 
   constructor(private serverCommand: string = DEFAULT_SERVER_COMMAND) {
     this.readyPromise = this.start();
@@ -237,18 +245,18 @@ export class PersistentServer {
   private async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       const parts = this.serverCommand.split(' ');
-      const cmd = parts[0];
-      const args = parts.slice(1);
+    const cmd = parts[0];
+    const args = parts.slice(1);
 
-      if (!cmd) {
+    if (!cmd) {
         reject(new Error('Invalid server command'));
-        return;
-      }
+      return;
+    }
 
       this.proc = spawn(cmd, args, {
-        shell: false,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
       if (!this.proc.stdout || !this.proc.stderr) {
         reject(new Error('Failed to spawn server process'));
@@ -340,28 +348,54 @@ export class PersistentServer {
       }
 
       try {
-        const response = JSON.parse(trimmed) as { id?: number; result?: unknown; error?: unknown };
+        const message = JSON.parse(trimmed) as {
+          id?: number;
+          method?: string;
+          params?: unknown;
+          result?: unknown;
+          error?: unknown;
+        };
+        
+        // Check if this is an elicitation/create request from the server
+        if (message.method === 'elicitation/create' && message.id !== undefined && message.params) {
+          const elicitationId = message.id;
+          const params = message.params as { message: string; requestedSchema: unknown };
+          
+          // Store the elicitation
+          this.pendingElicitations.set(elicitationId, {
+            resolve: () => {},
+            params,
+          });
+          
+          // Resolve any waiting promises
+          for (const resolver of this.elicitationResolvers) {
+            clearTimeout(resolver.timeout);
+            resolver.resolve(elicitationId);
+          }
+          this.elicitationResolvers = [];
+          continue;
+        }
         
         // Check if this is the initialize response (id: -1) indicating server is ready
-        if (response.id === -1 && response.result && !this.isReady) {
+        if (message.id === -1 && message.result && !this.isReady) {
           this.isReady = true;
           // Don't process this as a regular request, it's just for readiness check
           continue;
         }
         
-        if (response.id !== undefined && this.pendingRequests.has(response.id)) {
-          const { resolve, timeout } = this.pendingRequests.get(response.id)!;
+        if (message.id !== undefined && this.pendingRequests.has(message.id)) {
+          const { resolve, timeout } = this.pendingRequests.get(message.id)!;
           clearTimeout(timeout);
-          this.pendingRequests.delete(response.id);
+          this.pendingRequests.delete(message.id);
 
           const result: InspectorCliResult = {
-            success: !response.error,
+            success: !message.error,
             output: trimmed,
-            json: response,
+            json: message,
           };
 
-          if (response.error) {
-            result.error = JSON.stringify(response.error);
+          if (message.error) {
+            result.error = JSON.stringify(message.error);
           }
 
           resolve(result);
@@ -395,7 +429,7 @@ export class PersistentServer {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`Request ${id} timed out`));
-      }, 10000);
+    }, 10000);
 
       // Store the promise resolvers
       this.pendingRequests.set(id, { resolve, reject, timeout });
@@ -415,20 +449,20 @@ export class PersistentServer {
         this.pendingRequests.delete(id);
         reject(new Error('Server stdin is not available'));
       }
-    });
-  }
+  });
+}
 
-  /**
+/**
    * Call a tool on the persistent server
-   */
+ */
   async callTool(toolName: string, args: Record<string, unknown> = {}): Promise<InspectorCliResult> {
     return this.sendRequest('tools/call', {
-      name: toolName,
-      arguments: args,
-    });
-  }
+    name: toolName,
+    arguments: args,
+  });
+}
 
-  /**
+/**
    * List tools on the persistent server
    */
   async listTools(): Promise<InspectorCliResult> {
@@ -491,6 +525,67 @@ export class PersistentServer {
   }
 
   /**
+   * Wait for an elicitation request from the server
+   * Returns the elicitation ID when one is received
+   */
+  async waitForElicitation(timeoutMs = 5000): Promise<number | null> {
+    return new Promise((resolve) => {
+      // Check if there's already a pending elicitation
+      if (this.pendingElicitations.size > 0) {
+        const firstId = Array.from(this.pendingElicitations.keys())[0];
+        resolve(firstId);
+        return;
+      }
+
+      // Wait for a new elicitation
+      const timeout = setTimeout(() => {
+        resolve(null);
+      }, timeoutMs);
+
+      // Store the resolver
+      this.elicitationResolvers.push({
+        resolve: (id: number) => {
+          clearTimeout(timeout);
+          resolve(id);
+        },
+        timeout,
+      });
+    });
+  }
+
+  /**
+   * Respond to an elicitation request
+   */
+  async respondToElicitation(
+    elicitationId: number,
+    response: { action: 'accept' | 'decline' | 'cancel'; content?: Record<string, unknown> }
+  ): Promise<void> {
+    const elicitation = this.pendingElicitations.get(elicitationId);
+    if (!elicitation) {
+      throw new Error(`Elicitation ${elicitationId} not found`);
+    }
+
+    // Send the response back to the server
+    // The server expects a response to the elicitation/create request with the same id
+    if (!this.proc || this.proc.killed || !this.proc.stdin || this.proc.stdin.destroyed) {
+      throw new Error('Server process is not available');
+    }
+
+    // Send elicitation response with the same id as the request
+    const responseMessage = {
+      jsonrpc: '2.0' as const,
+      id: elicitationId,
+      result: {
+        action: response.action,
+        content: response.content,
+      },
+    };
+
+    this.proc.stdin.write(JSON.stringify(responseMessage) + '\n');
+    this.pendingElicitations.delete(elicitationId);
+  }
+
+  /**
    * Stop the server process
    */
   async stop(): Promise<void> {
@@ -500,6 +595,7 @@ export class PersistentServer {
       reject(new Error('Server is being stopped'));
     }
     this.pendingRequests.clear();
+    this.pendingElicitations.clear();
 
     if (this.proc && !this.proc.killed) {
       this.proc.kill();

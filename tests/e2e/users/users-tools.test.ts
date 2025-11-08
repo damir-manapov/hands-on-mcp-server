@@ -67,10 +67,10 @@ describe('User Tools', () => {
       await withServer(async server => {
         // Create a user
         const createResult = await server.callTool('create_user', {
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          role: 'admin',
-        });
+        name: 'Jane Doe',
+        email: 'jane@example.com',
+        role: 'admin',
+      });
 
         const createToolResult = extractToolResult(createResult);
         const createdUser = parseToolResultText<User>(createToolResult);
@@ -124,15 +124,15 @@ describe('User Tools', () => {
         const user1Result = await server.callTool('create_user', {
           name: 'Test User 1',
           email: 'test1@example.com',
-          role: 'user',
-        });
+        role: 'user',
+      });
         const user1Data = parseToolResultText<User>(extractToolResult(user1Result));
 
         const user2Result = await server.callTool('create_user', {
           name: 'Test User 2',
           email: 'test2@example.com',
-          role: 'admin',
-        });
+        role: 'admin',
+      });
         const user2Data = parseToolResultText<User>(extractToolResult(user2Result));
 
         // List users
@@ -141,7 +141,7 @@ describe('User Tools', () => {
         const users = parseToolResultText<Array<{ id: string; name: string }>>(listToolResult);
         expect(Array.isArray(users)).toBe(true);
         expect(users.length).toBeGreaterThanOrEqual(2);
-        
+
         // Verify our created users are in the list
         const userIds = users.map((u: { id: string }) => u.id);
         expect(userIds).toContain(user1Data.id);

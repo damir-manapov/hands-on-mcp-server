@@ -12,6 +12,7 @@ export function createServer(): McpServer {
         tools: {},
         resources: {},
         prompts: {},
+        elicitation: {},
       },
     }
   );
