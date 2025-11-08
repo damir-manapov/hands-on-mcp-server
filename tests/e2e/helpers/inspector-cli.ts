@@ -467,20 +467,6 @@ export class PersistentServer {
   }
 
   /**
-   * Get prompt completion suggestions on the persistent server
-   * Uses the old prompts/complete API (for backward compatibility with existing tests)
-   */
-  async getPromptCompletion(
-    promptName: string,
-    args: Record<string, unknown> = {}
-  ): Promise<InspectorCliResult> {
-    return this.sendRequest('prompts/complete', {
-      name: promptName,
-      arguments: args,
-    });
-  }
-
-  /**
    * Get completion suggestions using the completion/complete API
    * This is the actual API format used by MCP clients
    */
@@ -571,10 +557,6 @@ export function parseResourceError(resourceResult: ResourceResult): ResourceErro
   }
 }
 
-export interface PromptCompletionResult {
-  argument: Record<string, string[]>;
-}
-
 export interface CompletionResult {
   completion: {
     values: string[];
@@ -583,28 +565,7 @@ export interface CompletionResult {
 }
 
 /**
- * Extract prompt completion result from InspectorCliResult (old API format)
- * Throws if the result is invalid or missing
- */
-export function extractPromptCompletion(result: InspectorCliResult): PromptCompletionResult {
-  if (!result.success) {
-    throw new Error(`Prompt completion failed: ${result.error || 'Unknown error'}`);
-  }
-
-  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
-    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
-  }
-
-  const completionResult = result.json.result as PromptCompletionResult;
-  if (!completionResult || typeof completionResult !== 'object' || !('argument' in completionResult)) {
-    throw new Error(`Invalid completion result format: ${JSON.stringify(completionResult)}`);
-  }
-
-  return completionResult;
-}
-
-/**
- * Extract completion result from InspectorCliResult (new completion/complete API)
+ * Extract completion result from InspectorCliResult (completion/complete API)
  * Throws if the result is invalid or missing
  */
 export function extractCompletion(result: InspectorCliResult): CompletionResult {

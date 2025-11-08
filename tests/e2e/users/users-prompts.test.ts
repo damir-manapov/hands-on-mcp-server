@@ -5,7 +5,6 @@ import {
   extractResourceResult,
   extractToolResult,
   extractPromptsList,
-  extractPromptCompletion,
   extractCompletion,
   withServer,
 } from '../helpers/inspector-cli.js';
@@ -149,10 +148,7 @@ describe('User Prompts', () => {
       });
     });
 
-    it('should provide completion suggestions when typing partial user ID (legacy API)', async () => {
-      // This test uses the old prompts/complete API format
-      // The new completion/complete API is tested in the test above
-      // This test is kept for backward compatibility but may not work if the old API is removed
+    it('should provide completion suggestions when typing partial user ID', async () => {
       await withServer(async server => {
         // Clear all users first
         await server.callTool('clear_all_users', {});
@@ -270,16 +266,16 @@ describe('User Prompts', () => {
           expect(value.toLowerCase().startsWith(partialId.toLowerCase())).toBe(true);
         });
 
-        // Test completion for non-existent prompt - should return empty
+        // Test completion for non-existent prompt - SDK should return an error
         const nonExistentResult = await server.getCompletion(
           'userId',
           'test',
           'ref/prompt',
           'non_existent_prompt'
         );
-        const nonExistentCompletion = extractCompletion(nonExistentResult);
-        expect(nonExistentCompletion.completion.values).toEqual([]);
-        expect(nonExistentCompletion.completion.hasMore).toBe(false);
+        // The SDK returns an error for non-existent prompts, which is correct behavior
+        expect(nonExistentResult.success).toBe(false);
+        expect(nonExistentResult.error).toBeDefined();
       });
     });
 

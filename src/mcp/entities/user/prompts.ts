@@ -1,7 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
 import { z } from 'zod';
 import { db } from '../../../database.js';
-import { createPromptMessage, schema, validateInput } from '../../utils.js';
+import { createPromptMessage, validateInput } from '../../utils.js';
 
 // Define schemas for prompt arguments
 const getUserPromptSchema = z.object({
@@ -13,9 +14,19 @@ export function registerUserPrompts(mcpServer: McpServer): void {
     'get_user_details',
     {
       description: 'Get detailed information about a specific user',
-      // The schema() helper uses 'any' for MCP SDK compatibility
+      // Use completable for userId to enable autocompletion
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      argsSchema: schema(getUserPromptSchema),
+      argsSchema: {
+        userId: completable(
+          z.string().describe('User ID to get details for'),
+          async (value, _context) => {
+            const allUsers = db.getAllUsers();
+            return allUsers
+              .filter(user => user.id.toLowerCase().startsWith(value.toLowerCase()))
+              .map(user => user.id);
+          }
+        ),
+      },
     },
     async (args: unknown) => {
       // Parse and validate - result is type-safe after parsing
@@ -38,9 +49,6 @@ Last Updated: ${user.updatedAt.toISOString()}`
       );
     }
   );
-
-  // Note: Prompt completion handler is registered in server.ts
-  // to ensure it's available before entities are registered
 
   mcpServer.registerPrompt(
     'list_all_users',
