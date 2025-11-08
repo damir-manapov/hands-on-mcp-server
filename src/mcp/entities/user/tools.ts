@@ -56,4 +56,13 @@ export function registerUserTools(mcpServer: McpServer): void {
       return createToolResponse(JSON.stringify(users, null, 2));
     }
   );
+
+  mcpServer.registerTool(
+    'clear_all_users',
+    createToolConfig('Clear all users from the database (useful for testing)'),
+    async () => {
+      db.clearAllUsers();
+      return createToolResponse('All users cleared successfully');
+    }
+  );
 }

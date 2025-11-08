@@ -2,11 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../../../src/database.js';
 import type { User } from '../../../src/types.js';
 import {
-  readResourceViaInspector,
-  listResourcesViaInspector,
   extractResourceResult,
   extractResourcesList,
-  PersistentServer,
+  withServer,
 } from '../helpers/inspector-cli.js';
 
 describe('User Resources', () => {
@@ -20,29 +18,28 @@ describe('User Resources', () => {
 
   describe('All Users resource', () => {
     it('should read All Users resource when empty', async () => {
-      // Note: Each readResourceViaInspector spawns a new process with a fresh database
-      // So this should be empty, but we'll be lenient in case of timing issues
-      const result = await readResourceViaInspector('user-manager://users');
-      const resourceResult = extractResourceResult(result);
+      await withServer(async server => {
+        // Clear all users first
+        await server.callTool('clear_all_users', {});
 
-      expect(resourceResult.contents).toBeDefined();
-      expect(resourceResult.contents.length).toBe(1);
-      expect(resourceResult.contents[0].uri).toBe('user-manager://users');
-      expect(resourceResult.contents[0].mimeType).toBe('application/json');
-      expect(resourceResult.contents[0].text).toBeDefined();
+        const result = await server.readResource('user-manager://users');
+        const resourceResult = extractResourceResult(result);
 
-      const users = JSON.parse(resourceResult.contents[0].text!);
-      expect(Array.isArray(users)).toBe(true);
-      // Each process has a fresh database, so it should be empty
-      expect(users.length).toBeGreaterThanOrEqual(0);
+        expect(resourceResult.contents).toBeDefined();
+        expect(resourceResult.contents.length).toBe(1);
+        expect(resourceResult.contents[0].uri).toBe('user-manager://users');
+        expect(resourceResult.contents[0].mimeType).toBe('application/json');
+        expect(resourceResult.contents[0].text).toBeDefined();
+
+        const users = JSON.parse(resourceResult.contents[0].text!);
+        expect(Array.isArray(users)).toBe(true);
+        expect(users.length).toBe(0);
+      });
     });
 
     it('should read All Users resource with users', async () => {
       // Use persistent server to create users and read resource in same process
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create users via tools
         await server.callTool('create_user', {
           name: 'Resource Test User 1',
@@ -79,16 +76,11 @@ describe('User Resources', () => {
         expect(user2).toBeDefined();
         expect(user2?.email).toBe('resource2@example.com');
         expect(user2?.role).toBe('admin');
-      } finally {
-        await server.stop();
-      }
+      });
     });
 
     it('should return valid JSON structure', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
           name: 'JSON Test User',
@@ -111,18 +103,13 @@ describe('User Resources', () => {
           expect(user).toHaveProperty('createdAt');
           expect(user).toHaveProperty('updatedAt');
         }
-      } finally {
-        await server.stop();
-      }
+      });
     });
   });
 
   describe('User by ID resource', () => {
     it('should read user by ID when user exists', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
           name: 'Individual User Test',
@@ -152,43 +139,42 @@ describe('User Resources', () => {
         expect(user.name).toBe('Individual User Test');
         expect(user.email).toBe('individual@example.com');
         expect(user.role).toBe('admin');
-      } finally {
-        await server.stop();
-      }
+      });
     });
 
     it('should return error when user does not exist', async () => {
-      const result = await readResourceViaInspector('user-manager://users/non-existent-id');
-      const resourceResult = extractResourceResult(result);
+      await withServer(async server => {
+        const result = await server.readResource('user-manager://users/non-existent-id');
+        const resourceResult = extractResourceResult(result);
 
-      expect(resourceResult.contents.length).toBe(1);
-      expect(resourceResult.contents[0].mimeType).toBe('application/json');
-      expect(resourceResult.contents[0].text).toBeDefined();
+        expect(resourceResult.contents.length).toBe(1);
+        expect(resourceResult.contents[0].mimeType).toBe('application/json');
+        expect(resourceResult.contents[0].text).toBeDefined();
 
-      const error = JSON.parse(resourceResult.contents[0].text!) as { error: string };
-      expect(error.error).toBe('User not found');
+        const error = JSON.parse(resourceResult.contents[0].text!) as { error: string };
+        expect(error.error).toBe('User not found');
+      });
     });
 
     it('should return error when userId is missing', async () => {
-      // Try to read resource with empty userId (just the base URI)
-      // This will return a JSON-RPC error since the resource doesn't exist
-      try {
-        const result = await readResourceViaInspector('user-manager://users/');
-        extractResourceResult(result);
-        // If we get here, the resource was found (unexpected)
-        expect.fail('Expected error for missing userId');
-      } catch (error) {
-        // Expected - resource not found
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Resource');
-      }
+      await withServer(async server => {
+        // Try to read resource with empty userId (just the base URI)
+        // This will return a JSON-RPC error since the resource doesn't exist
+        try {
+          const result = await server.readResource('user-manager://users/');
+          extractResourceResult(result);
+          // If we get here, the resource was found (unexpected)
+          expect.fail('Expected error for missing userId');
+        } catch (error) {
+          // Expected - resource not found
+          expect(error).toBeInstanceOf(Error);
+          expect((error as Error).message).toContain('Resource');
+        }
+      });
     });
 
     it('should list all user resources', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create users
         await server.callTool('create_user', {
           name: 'List User 1',
@@ -218,19 +204,14 @@ describe('User Resources', () => {
         expect(user1Resource).toBeDefined();
         expect(user1Resource?.description).toContain('List User 1');
         expect(user1Resource?.description).toContain('list1@example.com');
-      } finally {
-        await server.stop();
-      }
+      });
     });
 
     it('should provide userId autocomplete', async () => {
       // Note: Resource template completion is not directly accessible via JSON-RPC
       // This test would require accessing the MCP server's internal structure
       // For now, we'll skip this test or test it indirectly via resource listing
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create users
         await server.callTool('create_user', {
           name: 'Complete User 1',
@@ -251,16 +232,11 @@ describe('User Resources', () => {
         );
 
         expect(userResources.length).toBeGreaterThanOrEqual(2);
-      } finally {
-        await server.stop();
-      }
+      });
     });
 
     it('should return valid JSON structure for existing user', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
           name: 'Structure Test User',
@@ -290,9 +266,7 @@ describe('User Resources', () => {
         expect(typeof user.name).toBe('string');
         expect(typeof user.email).toBe('string');
         expect(typeof user.role).toBe('string');
-      } finally {
-        await server.stop();
-      }
+      });
     });
   });
 });

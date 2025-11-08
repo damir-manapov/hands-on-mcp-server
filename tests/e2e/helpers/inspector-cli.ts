@@ -15,9 +15,6 @@ export interface ToolResult {
   isError?: boolean;
 }
 
-export interface ToolsListResult {
-  tools: Array<{ name: string; description?: string }>;
-}
 
 export interface ResourceResult {
   contents: Array<{
@@ -43,13 +40,6 @@ export interface PromptResult {
   }>;
 }
 
-export interface PromptsListResult {
-  prompts: Array<{
-    name: string;
-    description?: string;
-    args?: unknown;
-  }>;
-}
 
 /**
  * Extract tool result from InspectorCliResult
@@ -72,38 +62,6 @@ export function extractToolResult(result: InspectorCliResult): ToolResult {
   return toolResult;
 }
 
-/**
- * Extract tools list from InspectorCliResult
- * Throws if the result is invalid or missing
- */
-export function extractToolsList(result: InspectorCliResult): ToolsListResult {
-  if (!result.success) {
-    throw new Error(`Tools list failed: ${result.error || 'Unknown error'}`);
-  }
-
-  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
-    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
-  }
-
-  const toolsResult = result.json.result as ToolsListResult;
-  if (!toolsResult || !Array.isArray(toolsResult.tools)) {
-    throw new Error(`Invalid tools list format: ${JSON.stringify(toolsResult)}`);
-  }
-
-  return toolsResult;
-}
-
-/**
- * Safely extract tool result from InspectorCliResult
- * Returns null if the result is invalid or missing
- */
-export function tryExtractToolResult(result: InspectorCliResult): ToolResult | null {
-  try {
-    return extractToolResult(result);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Get the text content from a tool result
@@ -127,177 +85,6 @@ export function parseToolResultText<T = unknown>(toolResult: ToolResult): T {
   } catch (error) {
     throw new Error(`Failed to parse tool result text as JSON: ${error}`);
   }
-}
-
-/**
- * Send a JSON-RPC request to the MCP server via stdio
- */
-async function sendJsonRpcRequest(
-  serverCommand: string,
-  method: string,
-  params: Record<string, unknown>
-): Promise<InspectorCliResult> {
-  return new Promise(resolve => {
-    const parts = serverCommand.split(' ');
-    const cmd = parts[0];
-    const args = parts.slice(1);
-
-    if (!cmd) {
-      resolve({
-        success: false,
-        output: '',
-        error: 'Invalid server command',
-      });
-      return;
-    }
-
-    const proc = spawn(cmd, args, {
-      shell: false,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-    let stderr = '';
-    let responseReceived = false;
-
-    proc.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString();
-      // Check if we have a complete JSON-RPC response
-      const lines = stdout
-        .trim()
-        .split('\n')
-        .filter(l => l.trim().startsWith('{'));
-      if (lines.length > 0 && !responseReceived) {
-        try {
-          const lastLine = lines[lines.length - 1];
-          if (lastLine) {
-            JSON.parse(lastLine);
-            responseReceived = true;
-          }
-          // Give it a moment to ensure all data is received, then close
-          setTimeout(() => {
-            if (!proc.killed) {
-              proc.kill();
-            }
-          }, 100);
-        } catch {
-          // Not complete yet, keep waiting
-        }
-      }
-    });
-
-    proc.stderr.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    // Send JSON-RPC request after a small delay to ensure server is ready
-    const requestTimeout = setTimeout(() => {
-      const request = {
-        jsonrpc: '2.0',
-        id: 1,
-        method,
-        params,
-      };
-
-      proc.stdin.write(JSON.stringify(request) + '\n');
-      proc.stdin.end();
-    }, 100);
-
-    // Timeout after 10 seconds
-    const processTimeout = setTimeout(() => {
-      if (!proc.killed) {
-        proc.kill();
-      }
-      resolve({
-        success: false,
-        output: stdout,
-        error: 'Timeout',
-      });
-    }, 10000);
-
-    proc.on('close', code => {
-      clearTimeout(requestTimeout);
-      clearTimeout(processTimeout);
-      let json: unknown;
-      try {
-        // Try to parse the last line as JSON (MCP responses are JSON-RPC)
-        // Filter out stderr messages that might be mixed in
-        const lines = stdout
-          .trim()
-          .split('\n')
-          .filter(l => l.trim() && l.trim().startsWith('{'));
-        const lastLine = lines[lines.length - 1];
-        if (lastLine) {
-          json = JSON.parse(lastLine);
-        }
-      } catch {
-        // Not JSON, that's okay
-      }
-
-      const result: InspectorCliResult = {
-        success: code === 0 || code === null || responseReceived,
-        output: stdout,
-        json,
-      };
-      if (stderr) {
-        result.error = stderr;
-      }
-
-      resolve(result);
-    });
-
-    proc.on('error', error => {
-      clearTimeout(requestTimeout);
-      clearTimeout(processTimeout);
-      resolve({
-        success: false,
-        output: stdout,
-        error: error.message,
-      });
-    });
-  });
-}
-
-/**
- * Call an MCP tool using JSON-RPC over stdio
- */
-export async function callToolViaInspector(
-  toolName: string,
-  args: Record<string, unknown> = {},
-  serverCommand: string = DEFAULT_SERVER_COMMAND
-): Promise<InspectorCliResult> {
-  return sendJsonRpcRequest(serverCommand, 'tools/call', {
-    name: toolName,
-    arguments: args,
-  });
-}
-
-/**
- * List all tools using JSON-RPC over stdio
- */
-export async function listToolsViaInspector(
-  serverCommand: string = DEFAULT_SERVER_COMMAND
-): Promise<InspectorCliResult> {
-  return sendJsonRpcRequest(serverCommand, 'tools/list', {});
-}
-
-/**
- * Read a resource by URI using JSON-RPC over stdio
- */
-export async function readResourceViaInspector(
-  uri: string,
-  serverCommand: string = DEFAULT_SERVER_COMMAND
-): Promise<InspectorCliResult> {
-  return sendJsonRpcRequest(serverCommand, 'resources/read', { uri });
-}
-
-/**
- * List all resources using JSON-RPC over stdio
- */
-export async function listResourcesViaInspector(
-  serverCommand: string = DEFAULT_SERVER_COMMAND
-): Promise<InspectorCliResult> {
-  return sendJsonRpcRequest(serverCommand, 'resources/list', {});
 }
 
 /**
@@ -350,28 +137,6 @@ export function extractResourcesList(result: InspectorCliResult): ResourcesListR
   return resourcesResult;
 }
 
-/**
- * Get a prompt using JSON-RPC over stdio
- */
-export async function getPromptViaInspector(
-  promptName: string,
-  args: Record<string, unknown> = {},
-  serverCommand: string = DEFAULT_SERVER_COMMAND
-): Promise<InspectorCliResult> {
-  return sendJsonRpcRequest(serverCommand, 'prompts/get', {
-    name: promptName,
-    arguments: args,
-  });
-}
-
-/**
- * List all prompts using JSON-RPC over stdio
- */
-export async function listPromptsViaInspector(
-  serverCommand: string = DEFAULT_SERVER_COMMAND
-): Promise<InspectorCliResult> {
-  return sendJsonRpcRequest(serverCommand, 'prompts/list', {});
-}
 
 /**
  * Extract prompt result from InspectorCliResult
@@ -400,25 +165,22 @@ export function extractPromptResult(result: InspectorCliResult): PromptResult {
   return promptResult;
 }
 
+
 /**
- * Extract prompts list from InspectorCliResult
- * Throws if the result is invalid or missing
+ * Helper function to run a test with a PersistentServer
+ * Automatically handles server lifecycle (start, ready, stop)
  */
-export function extractPromptsList(result: InspectorCliResult): PromptsListResult {
-  if (!result.success) {
-    throw new Error(`Prompts list failed: ${result.error || 'Unknown error'}`);
+export async function withServer<T>(
+  testFn: (server: PersistentServer) => Promise<T>,
+  serverCommand: string = DEFAULT_SERVER_COMMAND
+): Promise<T> {
+  const server = new PersistentServer(serverCommand);
+  try {
+    await server.ready();
+    return await testFn(server);
+  } finally {
+    await server.stop();
   }
-
-  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
-    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
-  }
-
-  const promptsResult = result.json.result as PromptsListResult;
-  if (!promptsResult || !Array.isArray(promptsResult.prompts)) {
-    throw new Error(`Invalid prompts list format: ${JSON.stringify(promptsResult)}`);
-  }
-
-  return promptsResult;
 }
 
 /**

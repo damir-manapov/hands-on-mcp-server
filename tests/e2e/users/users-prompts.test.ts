@@ -1,12 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../../../src/database.js';
 import {
-  getPromptViaInspector,
-  listPromptsViaInspector,
   extractPromptResult,
-  extractPromptsList,
   extractResourceResult,
-  PersistentServer,
+  withServer,
 } from '../helpers/inspector-cli.js';
 
 describe('User Prompts', () => {
@@ -20,10 +17,7 @@ describe('User Prompts', () => {
 
   describe('get_user_details', () => {
     it('should get user details for existing user', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
           name: 'Prompt Test User',
@@ -54,30 +48,27 @@ describe('User Prompts', () => {
         expect(text).toContain('prompttest@example.com');
         expect(text).toContain('admin');
         expect(text).toContain('User Details:');
-      } finally {
-        await server.stop();
-      }
+      });
     });
 
     it('should return error message for non-existent user', async () => {
-      const result = await getPromptViaInspector('get_user_details', {
-        userId: 'non-existent-id',
-      });
-      const promptResult = extractPromptResult(result);
+      await withServer(async server => {
+        const result = await server.getPrompt('get_user_details', {
+          userId: 'non-existent-id',
+        });
+        const promptResult = extractPromptResult(result);
 
-      expect(promptResult.messages).toBeDefined();
-      expect(promptResult.messages.length).toBe(1);
-      expect(promptResult.messages[0].role).toBe('user');
-      expect(promptResult.messages[0].content.type).toBe('text');
-      expect(promptResult.messages[0].content.text).toContain('not found');
-      expect(promptResult.messages[0].content.text).toContain('non-existent-id');
+        expect(promptResult.messages).toBeDefined();
+        expect(promptResult.messages.length).toBe(1);
+        expect(promptResult.messages[0].role).toBe('user');
+        expect(promptResult.messages[0].content.type).toBe('text');
+        expect(promptResult.messages[0].content.text).toContain('not found');
+        expect(promptResult.messages[0].content.text).toContain('non-existent-id');
+      });
     });
 
     it('should include all user fields in details', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
           name: 'Complete User',
@@ -104,30 +95,29 @@ describe('User Prompts', () => {
         expect(text).toContain('Role:');
         expect(text).toContain('Created:');
         expect(text).toContain('Last Updated:');
-      } finally {
-        await server.stop();
-      }
+      });
     });
   });
 
   describe('list_all_users', () => {
     it('should return message when no users exist', async () => {
-      const result = await getPromptViaInspector('list_all_users', {});
-      const promptResult = extractPromptResult(result);
+      await withServer(async server => {
+        // Clear all users first
+        await server.callTool('clear_all_users', {});
 
-      expect(promptResult.messages).toBeDefined();
-      expect(promptResult.messages.length).toBe(1);
-      expect(promptResult.messages[0].role).toBe('user');
-      expect(promptResult.messages[0].content.type).toBe('text');
-      // Note: Each call spawns a new process, so database is fresh
-      expect(promptResult.messages[0].content.text).toMatch(/No users found|All Users/);
+        const result = await server.getPrompt('list_all_users', {});
+        const promptResult = extractPromptResult(result);
+
+        expect(promptResult.messages).toBeDefined();
+        expect(promptResult.messages.length).toBe(1);
+        expect(promptResult.messages[0].role).toBe('user');
+        expect(promptResult.messages[0].content.type).toBe('text');
+        expect(promptResult.messages[0].content.text).toContain('No users found');
+      });
     });
 
     it('should list all users with their information', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create users
         await server.callTool('create_user', {
           name: 'List User One',
@@ -174,16 +164,11 @@ describe('User Prompts', () => {
         if (user1) expect(text).toContain(user1.id);
         if (user2) expect(text).toContain(user2.id);
         if (user3) expect(text).toContain(user3.id);
-      } finally {
-        await server.stop();
-      }
+      });
     });
 
     it('should include role information for each user', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
           name: 'Role Test User',
@@ -198,16 +183,11 @@ describe('User Prompts', () => {
 
         expect(text).toContain('Role:');
         expect(text).toContain('admin');
-      } finally {
-        await server.stop();
-      }
+      });
     });
 
     it('should format user list correctly', async () => {
-      const server = new PersistentServer();
-      try {
-        await server.ready();
-
+      await withServer(async server => {
         // Create a user
         await server.callTool('create_user', {
           name: 'Format User',
@@ -225,9 +205,7 @@ describe('User Prompts', () => {
         // Should have parentheses for email
         expect(text).toContain('(');
         expect(text).toContain(')');
-      } finally {
-        await server.stop();
-      }
+      });
     });
   });
 });

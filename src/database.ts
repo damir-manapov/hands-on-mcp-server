@@ -162,6 +162,10 @@ class InMemoryDatabase {
     return this.db.users.delete(id);
   }
 
+  clearAllUsers(): void {
+    this.db.users.clear();
+  }
+
   // Project operations
   createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Project {
     const id = `project-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
