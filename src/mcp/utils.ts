@@ -36,3 +36,44 @@ export function validateInput<T>(schema: z.ZodType<T>, input: unknown): T {
   // TypeScript narrows the type after the success check
   return result.data;
 }
+
+// Helper function to create prompt messages
+// Simplifies the creation of prompt message responses
+export function createPromptMessage(text: string): {
+  messages: Array<{
+    role: 'user';
+    content: { type: 'text'; text: string };
+  }>;
+} {
+  return {
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text,
+        },
+      },
+    ],
+  };
+}
+
+// Helper function to create tool responses
+// Simplifies the creation of tool response content
+export function createToolResponse(
+  text: string,
+  isError = false
+): {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+} {
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text,
+      },
+    ],
+    ...(isError && { isError: true }),
+  };
+}

@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { db } from '../../../database.js';
-import { createToolConfig, validateInput } from '../../utils.js';
+import { createToolConfig, createToolResponse, validateInput } from '../../utils.js';
 
 // Define schemas for validation
 const createUserSchema = z.object({
@@ -30,14 +30,7 @@ export function registerUserTools(mcpServer: McpServer): void {
         email: validated.email,
         role: validated.role,
       });
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(user, null, 2),
-          },
-        ],
-      };
+      return createToolResponse(JSON.stringify(user, null, 2));
     }
   );
 
@@ -49,24 +42,9 @@ export function registerUserTools(mcpServer: McpServer): void {
       const validated = validateInput(getUserSchema, args);
       const user = db.getUser(validated.userId);
       if (!user) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: 'User not found',
-            },
-          ],
-          isError: true,
-        };
+        return createToolResponse('User not found', true);
       }
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(user, null, 2),
-          },
-        ],
-      };
+      return createToolResponse(JSON.stringify(user, null, 2));
     }
   );
 
@@ -75,14 +53,7 @@ export function registerUserTools(mcpServer: McpServer): void {
     createToolConfig('List all users in the system', z.object({})),
     async () => {
       const users = db.getAllUsers();
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(users, null, 2),
-          },
-        ],
-      };
+      return createToolResponse(JSON.stringify(users, null, 2));
     }
   );
 }
