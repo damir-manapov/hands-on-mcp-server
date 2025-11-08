@@ -24,6 +24,10 @@ export interface ResourceResult {
   }>;
 }
 
+export interface ResourceErrorResponse {
+  error: string;
+}
+
 export interface ResourcesListResult {
   resources: Array<{
     uri: string;
@@ -38,6 +42,22 @@ export interface PromptResult {
     role: 'user' | 'assistant';
     content: { type: 'text'; text: string };
   }>;
+}
+
+export interface PromptArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface PromptInfo {
+  name: string;
+  description?: string;
+  arguments?: PromptArgument[];
+}
+
+export interface PromptsListResult {
+  prompts: PromptInfo[];
 }
 
 
@@ -406,6 +426,19 @@ export class PersistentServer {
   }
 
   /**
+   * Get prompt completion suggestions on the persistent server
+   */
+  async getPromptCompletion(
+    promptName: string,
+    args: Record<string, unknown> = {}
+  ): Promise<InspectorCliResult> {
+    return this.sendRequest('prompts/complete', {
+      name: promptName,
+      arguments: args,
+    });
+  }
+
+  /**
    * Stop the server process
    */
   async stop(): Promise<void> {
@@ -420,5 +453,54 @@ export class PersistentServer {
       this.proc.kill();
       this.proc = null;
     }
+  }
+}
+
+/**
+ * Extract prompts list from InspectorCliResult
+ * Throws if the result is invalid or missing
+ */
+export function extractPromptsList(result: InspectorCliResult): PromptsListResult {
+  if (!result.success) {
+    throw new Error(`Prompts list failed: ${result.error || 'Unknown error'}`);
+  }
+
+  if (!result.json || typeof result.json !== 'object' || !('result' in result.json)) {
+    throw new Error(`Invalid response format: ${JSON.stringify(result.json)}`);
+  }
+
+  const promptsResult = result.json.result as PromptsListResult;
+  if (!promptsResult || !Array.isArray(promptsResult.prompts)) {
+    throw new Error(`Invalid prompts list format: ${JSON.stringify(promptsResult)}`);
+  }
+
+  return promptsResult;
+}
+
+/**
+ * Parse error response from a resource result
+ * Throws if the content is missing or invalid JSON
+ */
+export function parseResourceError(resourceResult: ResourceResult): ResourceErrorResponse {
+  if (!resourceResult.contents || resourceResult.contents.length === 0) {
+    throw new Error('Resource result has no contents');
+  }
+
+  const content = resourceResult.contents[0];
+  if (!content.text) {
+    throw new Error('Resource content has no text');
+  }
+
+  try {
+    const parsed = JSON.parse(content.text) as ResourceErrorResponse;
+    if (!parsed.error || typeof parsed.error !== 'string') {
+      throw new Error('Invalid error response format: missing or invalid error field');
+    }
+    return parsed;
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(`Failed to parse resource error as JSON: ${error.message}`);
+    }
+    throw error;
   }
 }

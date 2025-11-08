@@ -3,6 +3,8 @@ import { db } from '../../../src/database.js';
 import {
   extractPromptResult,
   extractResourceResult,
+  extractToolResult,
+  extractPromptsList,
   withServer,
 } from '../helpers/inspector-cli.js';
 
@@ -95,6 +97,53 @@ describe('User Prompts', () => {
         expect(text).toContain('Role:');
         expect(text).toContain('Created:');
         expect(text).toContain('Last Updated:');
+      });
+    });
+
+    it('should provide userId autocompletion', async () => {
+      await withServer(async server => {
+        // Create users for autocompletion
+        await server.callTool('create_user', {
+          name: 'Autocomplete User 1',
+          email: 'autocomplete1@example.com',
+          role: 'user',
+        });
+
+        await server.callTool('create_user', {
+          name: 'Autocomplete User 2',
+          email: 'autocomplete2@example.com',
+          role: 'admin',
+        });
+
+        // List prompts to verify the prompt has arguments schema
+        const promptsResult = await server.listPrompts();
+        const promptsList = extractPromptsList(promptsResult);
+
+        expect(promptsList.prompts).toBeDefined();
+        const getDetailsPrompt = promptsList.prompts.find(
+          p => p.name === 'get_user_details'
+        );
+        
+        expect(getDetailsPrompt).toBeDefined();
+        if (!getDetailsPrompt) {
+          throw new Error('get_user_details prompt not found');
+        }
+
+        expect(getDetailsPrompt.description).toBeDefined();
+        expect(getDetailsPrompt.description).toContain('Get detailed information');
+
+        // Verify that the prompt has arguments defined for autocompletion
+        expect(getDetailsPrompt.arguments).toBeDefined();
+        expect(Array.isArray(getDetailsPrompt.arguments)).toBe(true);
+
+        // Verify that the arguments array includes userId field
+        const userIdArg = getDetailsPrompt.arguments?.find(
+          arg => arg.name === 'userId'
+        );
+        expect(userIdArg).toBeDefined();
+        expect(userIdArg?.description).toBeDefined();
+        expect(userIdArg?.description).toContain('User ID');
+        expect(userIdArg?.required).toBe(true);
       });
     });
   });

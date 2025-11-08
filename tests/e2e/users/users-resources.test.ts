@@ -4,6 +4,7 @@ import type { User } from '../../../src/types.js';
 import {
   extractResourceResult,
   extractResourcesList,
+  parseResourceError,
   withServer,
 } from '../helpers/inspector-cli.js';
 
@@ -151,7 +152,7 @@ describe('User Resources', () => {
         expect(resourceResult.contents[0].mimeType).toBe('application/json');
         expect(resourceResult.contents[0].text).toBeDefined();
 
-        const error = JSON.parse(resourceResult.contents[0].text!) as { error: string };
+        const error = parseResourceError(resourceResult);
         expect(error.error).toBe('User not found');
       });
     });
