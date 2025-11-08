@@ -14,6 +14,10 @@ const getUserSchema = z.object({
   userId: z.string().describe('User ID'),
 });
 
+// Infer TypeScript types from Zod schemas
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type GetUserInput = z.infer<typeof getUserSchema>;
+
 export function registerUserTools(mcpServer: McpServer): void {
   mcpServer.registerTool(
     'create_user',

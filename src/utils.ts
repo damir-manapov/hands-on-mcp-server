@@ -3,18 +3,24 @@ import type { ZodRawShape } from 'zod';
 
 // Helper to work around type issues with ZodRawShape
 // The MCP SDK expects ZodRawShape but we have ZodObject, so we need this conversion
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return
-export const schema = <T extends ZodRawShape>(s: z.ZodObject<T>) => s as unknown as any;
+// Note: We must use 'any' here due to TypeScript's inability to express the structural
+// compatibility between ZodObject and ZodRawShape that exists at runtime
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const schema = <T extends ZodRawShape>(s: z.ZodObject<T>): any => {
+  // Type assertion needed for MCP SDK compatibility
+  // ZodObject is structurally compatible with ZodRawShape at runtime
+  return s as unknown as ZodRawShape;
+};
 
 // Helper to create tool config with properly typed inputSchema
-// This avoids eslint-disable comments by encapsulating the any cast
-// The schema() helper returns any for MCP SDK compatibility
+// This encapsulates the type conversion needed for MCP SDK compatibility
 export function createToolConfig<T extends ZodRawShape>(
   description: string,
   inputSchema: z.ZodObject<T>
 ) {
   return {
     description,
+    // The schema() helper uses 'any' for MCP SDK compatibility (see schema() comment)
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     inputSchema: schema(inputSchema),
   };
